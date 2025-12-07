@@ -1,0 +1,395 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Eye,
+  RefreshCw,
+  LogOut,
+  FileText,
+  CheckCircle,
+  Building,
+  Users,
+  SettingsIcon,
+  User,
+  Briefcase,
+  ShieldAlert,
+  Shield,
+  Search,
+  X,
+} from "lucide-react"
+import BankDetailsSettings from "./BankDetailsSettings"
+import UserManagement from "./UserManagement"
+import { isAdmin } from "@/lib/auth-utils"
+import CustomizationSettings from "./CustomizationSettings"
+
+// Helper function to format time ago
+const formatTimeAgo = (date: Date) => {
+  const now = new Date()
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffInSeconds < 60) {
+    return "Just now"
+  }
+
+  const diffInMinutes = Math.floor(diffInSeconds / 60)
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes} minute${diffInMinutes > 1 ? "s" : ""} ago`
+  }
+
+  const diffInHours = Math.floor(diffInMinutes / 60)
+  if (diffInHours < 24) {
+    return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`
+  }
+
+  const diffInDays = Math.floor(diffInHours / 24)
+  if (diffInDays < 7) {
+    return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`
+  }
+
+  return date.toLocaleDateString()
+}
+
+type AdminDashboardProps = {
+  user: any
+  navigateTo: (page: string, id?: string) => void
+  onLogout: () => void
+  bankDetails: any
+  onUpdateBankDetails: (data: any) => Promise<any>
+  registrations?: any[]
+}
+
+export default function AdminDashboard({
+  user,
+  navigateTo,
+  onLogout,
+  bankDetails,
+  onUpdateBankDetails,
+  registrations = [],
+}: AdminDashboardProps) {
+  const [companies, setCompanies] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("companies")
+  const [selectedCompany, setSelectedCompany] = useState<any>(null)
+  const [viewStep, setViewStep] = useState(1)
+  const [viewTab, setViewTab] = useState("customization")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filteredCompanies, setFilteredCompanies] = useState<any[]>([])
+
+  // Check if user is admin
+  const userIsAdmin = isAdmin(user)
+
+  // Update filtered companies whenever search query or companies change
+  useEffect(() => {
+    const searchLower = searchQuery.toLowerCase().trim()
+    if (!searchLower) {
+      setFilteredCompanies(companies)
+      return
+    }
+
+    const filtered = companies.filter((company) => {
+      const companyName = (company.companyNameEnglish || company.companyName || "").toLowerCase()
+      const contactName = (company.customerName || company.contactPersonName || "").toLowerCase()
+      const contactEmail = (company.contactPersonEmail || "").toLowerCase()
+      const status = (company.status || "").toLowerCase()
+
+      return companyName.includes(searchLower) ||
+        contactName.includes(searchLower) ||
+        contactEmail.includes(searchLower) ||
+        status.includes(searchLower)
+    })
+    setFilteredCompanies(filtered)
+  }, [searchQuery, companies])
+
+  useEffect(() => {
+    // Load companies data
+    const timer = setTimeout(() => {
+      // Use the registrations passed from the parent if available
+      if (registrations && registrations.length > 0) {
+        // Sort registrations by updatedAt date (newest first)
+        const sortedRegistrations = [...registrations].sort((a, b) => {
+          const dateA = new Date(a.updatedAt || a.createdAt).getTime()
+          const dateB = new Date(b.updatedAt || b.createdAt).getTime()
+          return dateB - dateA // Descending order (newest first)
+        })
+        setCompanies(sortedRegistrations)
+      } else {
+        // Use empty array if no registrations are provided
+        setCompanies([])
+      }
+      setLoading(false)
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [registrations])
+
+  // Update default tab and enforce access control
+  useEffect(() => {
+    if (!userIsAdmin && (activeTab === "settings" || activeTab === "users")) {
+      setActiveTab("companies")
+    }
+  }, [activeTab, userIsAdmin])
+
+  // Status badge helper
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "payment-processing":
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            Payment Processing
+          </Badge>
+        )
+      case "payment-rejected":
+        return (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+            Payment Rejected
+          </Badge>
+        )
+      case "documentation-processing":
+        return (
+          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+            Documentation Processing
+          </Badge>
+        )
+      case "incorporation-processing":
+        return (
+          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+            Incorporation Processing
+          </Badge>
+        )
+      case "completed":
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            Completed
+          </Badge>
+        )
+      default:
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            Payment Processing
+          </Badge>
+        )
+    }
+  }
+
+  // Get role badge for header
+  const getRoleBadge = () => {
+    if (user.role === "admin") {
+      return (
+        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 flex items-center gap-1">
+          <ShieldAlert className="h-3 w-3" /> Admin
+        </Badge>
+      )
+    }
+    return null
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-64 bg-background border-r px-3 py-4 flex flex-col">
+        <div className="mb-6 px-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Building className="h-5 w-5" /> Dashboard {getRoleBadge()}
+          </h2>
+        </div>
+        
+        {/* Main Menu Items */}
+        <nav className="space-y-1">
+          <Button
+            variant={activeTab === "companies" ? "secondary" : "ghost"}
+            className="w-full justify-start"
+            onClick={() => setActiveTab("companies")}
+          >
+            <Building className="h-4 w-4 mr-2" /> Companies
+          </Button>
+
+          {userIsAdmin && (
+            <>
+              <Button
+                variant={activeTab === "users" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("users")}
+              >
+                <Users className="h-4 w-4 mr-2" /> User Management
+              </Button>
+              
+              {/* Settings with submenu */}
+              <div className="space-y-1">
+                <Button
+                  variant={activeTab === "settings" ? "secondary" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setActiveTab("settings")}
+                >
+                  <SettingsIcon className="h-4 w-4 mr-2" /> Settings
+                </Button>
+                
+                {activeTab === "settings" && (
+                  <div className="ml-4 space-y-1 mt-1">
+                    <Button
+                      variant={viewTab === "customization" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full justify-start text-sm"
+                      onClick={() => setViewTab("customization")}
+                    >
+                      Customization
+                    </Button>
+                    <Button
+                      variant={viewTab === "bank-details" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full justify-start text-sm"
+                      onClick={() => setViewTab("bank-details")}
+                    >
+                      Bank Details
+                    </Button>
+                    <Button
+                      variant={viewTab === "billing" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full justify-start text-sm"
+                      onClick={() => setViewTab("billing")}
+                    >
+                      Billing
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="container py-6">
+          {/* Companies Tab */}
+          {activeTab === "companies" && (
+            <>
+              {loading ? (
+                <div className="flex justify-center items-center h-64">
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : companies.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-xl">Company Registrations</CardTitle>
+                    <CardDescription>Manage all company registrations</CardDescription>
+                    <div className="mt-4 flex items-center space-x-2">
+                      <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Search className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Search companies..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-10 py-2 border border-input rounded-md bg-background/50 focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-input placeholder:text-muted-foreground/70 shadow-sm transition-colors"
+                        />
+                        {searchQuery && (
+                          <div className="absolute inset-y-0 right-0 flex items-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-full px-3 hover:bg-transparent text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={() => setSearchQuery("")}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      {filteredCompanies.length > 0 && companies.length > filteredCompanies.length && (
+                        <div className="flex items-center px-3 py-1.5 text-xs text-muted-foreground bg-muted rounded-md">
+                          <span>Found </span>
+                          <span className="font-medium px-1">{filteredCompanies.length}</span>
+                          <span>of </span>
+                          <span className="font-medium px-1">{companies.length}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Company Name</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Last Updated</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCompanies.map((company: any) => (
+                          <TableRow key={company._id}>
+                            <TableCell className="font-medium">
+                              {company.companyNameEnglish || company.companyName}
+                            </TableCell>
+                            <TableCell>{company.customerName || company.contactPersonName}</TableCell>
+                            <TableCell>{getStatusBadge(company.status)}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {formatTimeAgo(new Date(company.updatedAt || company.createdAt))}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigateTo("companyDetails", company._id)}
+                                className="gap-1"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <Building className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-medium mb-2">No Companies Registered</h3>
+                    <p className="text-muted-foreground mb-6">There are no company registrations yet.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* Users Tab */}
+          {activeTab === "users" && userIsAdmin && (
+            <UserManagement currentUser={user} />
+          )}
+
+          {/* Settings Tab */}
+          {activeTab === "settings" && userIsAdmin && (
+            <div className="space-y-8">
+              {viewTab === "customization" && <CustomizationSettings />}
+              
+              {viewTab === "bank-details" && (
+                <BankDetailsSettings initialData={bankDetails} onSave={onUpdateBankDetails} />
+              )}
+              
+              {viewTab === "billing" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Billing</CardTitle>
+                    <CardDescription>Manage your billing and invoices here.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">Billing features coming soon.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
