@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
+import { sanitizeInput } from "@/lib/security-utils"
 
 import { cn } from "@/lib/utils"
 
@@ -77,8 +78,11 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    // Sanitize color values to prevent XSS
+    const sanitizedColor = color ? sanitizeInput(color) : null
+    return sanitizedColor ? `  --color-${key}: ${sanitizedColor};` : null
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `,
@@ -136,14 +140,16 @@ const ChartTooltipContent = React.forwardRef<
           : itemConfig?.label
 
       if (labelFormatter) {
-        return <div className={cn("font-medium", labelClassName)}>{labelFormatter(value, payload)}</div>
+        // Sanitize the formatted label to prevent XSS
+        const formattedLabel = labelFormatter(value, payload)
+        return <div className={cn("font-medium", labelClassName)}>{sanitizeInput(String(formattedLabel))}</div>
       }
 
       if (!value) {
         return null
       }
 
-      return <div className={cn("font-medium", labelClassName)}>{value}</div>
+      return <div className={cn("font-medium", labelClassName)}>{sanitizeInput(String(value))}</div>
     }, [label, labelFormatter, payload, hideLabel, labelClassName, config, labelKey])
 
     if (!active || !payload?.length) {
@@ -176,7 +182,8 @@ const ChartTooltipContent = React.forwardRef<
                 )}
               >
                 {formatter && item?.value !== undefined && item.name ? (
-                  formatter(item.value, item.name, item, index, item.payload)
+                  // Sanitize formatter output to prevent XSS
+                  <>{sanitizeInput(String(formatter(item.value, item.name, item, index, item.payload)))}</>
                 ) : (
                   <>
                     {itemConfig?.icon ? (
@@ -207,7 +214,7 @@ const ChartTooltipContent = React.forwardRef<
                     >
                       <div className="grid gap-1.5">
                         {nestLabel ? tooltipLabel : null}
-                        <span className="text-muted-foreground">{itemConfig?.label || item.name}</span>
+                        <span className="text-muted-foreground">{sanitizeInput(String(itemConfig?.label || item.name))}</span>
                       </div>
                       {item.value && (
                         <span className="font-mono font-medium tabular-nums text-foreground">
@@ -267,7 +274,7 @@ const ChartLegendContent = React.forwardRef<
                 }}
               />
             )}
-            {itemConfig?.label}
+            <span>{sanitizeInput(String(itemConfig?.label))}</span>
           </div>
         )
       })}
