@@ -63,6 +63,7 @@ import { getPackageById, type Package } from "@/lib/package-utils";
 import type { PackagePlan } from "@/components/admin/PackagesManager";
 import { Progress } from "@/components/ui/progress";
 import adminData from "@/lib/sri-lanka-admin-data.json";
+import { sanitizeForDisplay } from "@/lib/xss-utils";
 
 type CompanyDetailsPageProps = {
   companyId: string;
@@ -5974,7 +5975,7 @@ export default function CompanyDetailsPage({
         </Button>
         <div className="flex flex-col sm:flex-row sm:items-center sm:flex-1 gap-2">
           <h1 className="text-xl sm:text-2xl font-bold break-words">
-            {selectedCompany.companyNameEnglish}
+            {sanitizeForDisplay(selectedCompany.companyNameEnglish || selectedCompany.companyName || '')}
           </h1>
           <div className="flex items-center gap-2 self-start sm:ml-auto">
             {getStatusBadge(selectedCompany.status)}
@@ -6265,7 +6266,7 @@ export default function CompanyDetailsPage({
                           Contact Person
                         </h3>
                         <p className="font-medium">
-                          {selectedCompany.contactPersonName}
+                          {sanitizeForDisplay(selectedCompany.contactPersonName || '')}
                         </p>
                       </div>
                       <div>
@@ -6275,7 +6276,7 @@ export default function CompanyDetailsPage({
                         <div className="flex items-center gap-2">
                           <Mail className="h-4 w-4 text-muted-foreground" />
                           <p className="font-medium">
-                            {selectedCompany.contactPersonEmail}
+                            {sanitizeForDisplay(selectedCompany.contactPersonEmail || '')}
                           </p>
                         </div>
                       </div>
@@ -6286,7 +6287,7 @@ export default function CompanyDetailsPage({
                         <div className="flex items-center gap-2">
                           <Phone className="h-4 w-4 text-muted-foreground" />
                           <p className="font-medium">
-                            {selectedCompany.contactPersonPhone}
+                            {sanitizeForDisplay(selectedCompany.contactPersonPhone || '')}
                           </p>
                         </div>
                       </div>
@@ -6398,7 +6399,7 @@ export default function CompanyDetailsPage({
                             />
                           ) : (
                             <p className="text-primary bg-primary/10 p-2 rounded-md">
-                              {selectedCompany.companyEntity}
+                              {sanitizeForDisplay(selectedCompany.companyEntity || '')}
                             </p>
                           )}
                         </div>
@@ -6441,7 +6442,7 @@ export default function CompanyDetailsPage({
                                   />
                                 ) : (
                                   <p className="text-primary bg-primary/10 p-2 rounded-md">
-                                    {selectedCompany.companyNameEnglish}
+                                    {sanitizeForDisplay(selectedCompany.companyNameEnglish)}
                                   </p>
                                 )}
                               </div>
@@ -6481,7 +6482,7 @@ export default function CompanyDetailsPage({
                                   />
                                 ) : (
                                   <p className="text-primary bg-primary/10 p-2 rounded-md">
-                                    {selectedCompany.companyNameSinhala}
+                                    {sanitizeForDisplay(selectedCompany.companyNameSinhala)}
                                   </p>
                                 )}
                               </div>
