@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database';
 import { safeJsonParse } from '@/lib/utils';
 import { checkRegistrationExpiryAndNotify } from '@/lib/registration-expiry-utils';
-import { xssProtectionMiddleware, sanitizeApiResponse } from '@/lib/xss-middleware';
 
 // GET all registrations
 export async function GET(request: NextRequest) {
     let connection;
     try {
         console.log('🚨 API CALL DETECTED - GET /api/registrations called at:', new Date().toISOString());
-        
-        // Apply XSS protection middleware
-        const protectedRequest = await xssProtectionMiddleware(request);
 
         if (!pool) {
             console.error('❌ Database pool not available');
@@ -261,9 +257,7 @@ export async function GET(request: NextRequest) {
         });
 
         console.log('✅ Successfully converted', convertedRows.length, 'registrations');
-        // Sanitize the response to prevent XSS
-        const sanitizedResponse = sanitizeApiResponse(convertedRows);
-        return NextResponse.json(sanitizedResponse);
+        return NextResponse.json(convertedRows);
     } catch (error) {
         console.error('❌ Error fetching registrations:', error);
         // Make sure to release connection if it exists
@@ -285,15 +279,12 @@ export async function POST(request: NextRequest) {
         console.log('🚨 Request headers:', Object.fromEntries(request.headers.entries()));
         console.log('🚨 Request method:', request.method);
         console.log('🚨 Request URL:', request.url);
-        
-        // Apply XSS protection middleware
-        const protectedRequest = await xssProtectionMiddleware(request);
 
         if (!pool) {
             return NextResponse.json({ error: 'Database not available' }, { status: 503 });
         }
 
-        const body = protectedRequest.sanitizedBody || await request.json();
+        const body = await request.json();
         console.log('📝 Registration API - Received body:', JSON.stringify(body, null, 2));
 
         const connection = await pool.getConnection();
@@ -365,9 +356,6 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         console.log('🚨 API CALL DETECTED - PUT /api/registrations/:id called at:', new Date().toISOString());
-        
-        // Apply XSS protection middleware
-        const protectedRequest = await xssProtectionMiddleware(request);
 
         if (!pool) {
             return NextResponse.json({ error: 'Database not available' }, { status: 503 });
@@ -381,7 +369,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // Safely parse the request body
         let body: any = {};
         try {
-            body = protectedRequest.sanitizedBody || await request.json();
+            body = await request.json();
         } catch (parseError) {
             console.error('❌ Error parsing request body as JSON:', parseError);
             return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
