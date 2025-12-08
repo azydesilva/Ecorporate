@@ -3,6 +3,7 @@ import pool from '@/lib/database';
 import { FileStorageService } from '@/lib/file-storage';
 import { safeJsonParse } from '@/lib/utils';
 import { checkRegistrationExpiryAndNotify } from '@/lib/registration-expiry-utils';
+import { xssProtectionMiddleware, sanitizeApiResponse } from '@/lib/xss-middleware';
 
 // Helper function to convert ISO date string to MySQL date format
 function formatDateForMySQL(dateString: string | null | undefined): string | null {
@@ -26,6 +27,10 @@ export async function GET(
     let connection;
     try {
         console.log('🔍 GET /api/registrations/[id] called');
+        
+        // Apply XSS protection middleware
+        const protectedRequest = await xssProtectionMiddleware(request);
+        
         if (!pool) {
             console.error('❌ Database pool not initialized');
             return NextResponse.json({ error: 'Database not available' }, { status: 503 });
@@ -203,7 +208,9 @@ export async function GET(
             companyNameSinhala: convertedRow.companyNameSinhala
         });
 
-        return NextResponse.json(convertedRow);
+        // Sanitize the response to prevent XSS
+        const sanitizedResponse = sanitizeApiResponse(convertedRow);
+        return NextResponse.json(sanitizedResponse);
     } catch (error) {
         console.error('❌ Error fetching registration:', error);
         // Make sure to release connection if it exists
@@ -224,6 +231,9 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        // Apply XSS protection middleware
+        const protectedRequest = await xssProtectionMiddleware(request);
+        
         if (!pool) {
             return NextResponse.json({ error: 'Database not available' }, { status: 503 });
         }
@@ -233,7 +243,7 @@ export async function PUT(
         // Safely parse the request body
         let body: any = {};
         try {
-            body = await request.json();
+            body = protectedRequest.sanitizedBody || await request.json();
         } catch (parseError) {
             console.error('❌ Error parsing request body as JSON:', parseError);
             return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
