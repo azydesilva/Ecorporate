@@ -2,7 +2,6 @@ import { writeFile, readFile, unlink, mkdir, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
-import { sanitizeFilename } from '@/lib/security-utils'
 
 export interface FileMetadata {
     id: string
@@ -25,8 +24,7 @@ export interface FileUploadResult {
 
 export class FileStorageService {
     private uploadsDir: string
-    // Set a reasonable file size limit (100MB)
-    private maxFileSize = 100 * 1024 * 1024 // 100MB in bytes
+    // Removed maxFileSize limit to allow unlimited uploads
     private allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     private allowedDocumentTypes = [
         'application/pdf',
@@ -98,12 +96,7 @@ export class FileStorageService {
     }
 
     private validateFile(file: any): string | null {
-        // Check file size
-        if (file.size > this.maxFileSize) {
-            return `File size exceeds maximum allowed size of ${this.maxFileSize / (1024 * 1024)}MB`
-        }
-        
-        // Check file type
+        // Removed file size validation to allow unlimited uploads
         const allowedTypes = [...this.allowedImageTypes, ...this.allowedDocumentTypes]
         if (!allowedTypes.includes(file.mimetype)) {
             return `File type ${file.mimetype} is not allowed`
@@ -129,10 +122,7 @@ export class FileStorageService {
             // Generate unique file ID and determine category
             const fileId = this.generateFileId()
             const category = this.getCategory(file.mimetype)
-            
-            // Sanitize original filename to prevent directory traversal attacks
-            const sanitizedOriginalName = sanitizeFilename(file.originalname)
-            const extension = this.getFileExtension(sanitizedOriginalName)
+            const extension = this.getFileExtension(file.originalname)
             const fileName = `${fileId}${extension}`
 
             console.log(`📂 File will be saved to category: ${category}, filename: ${fileName}`);
@@ -149,7 +139,7 @@ export class FileStorageService {
             // Create metadata with environment-aware URL
             const fileMetadata: FileMetadata = {
                 id: fileId,
-                originalName: sanitizedOriginalName,
+                originalName: file.originalname,
                 fileName: fileName,
                 filePath: filePath,
                 fileType: file.mimetype,
@@ -160,7 +150,7 @@ export class FileStorageService {
                 url: this.getFileUrl(path.join(category, fileName))
             }
 
-            console.log(`✅ File saved successfully: ${sanitizedOriginalName} -> ${filePath}`);
+            console.log(`✅ File saved successfully: ${file.originalname} -> ${filePath}`);
             return { success: true, file: fileMetadata }
         } catch (error) {
             console.error('❌ Error saving file:', error);
@@ -179,21 +169,13 @@ export class FileStorageService {
                 return { success: false, error: `File type ${file.mimetype} is not allowed for public images` }
             }
 
-            // Check file size for public files
-            if (file.size > this.maxFileSize) {
-                return { success: false, error: `File size exceeds maximum allowed size of ${this.maxFileSize / (1024 * 1024)}MB` }
-            }
-
-            // Sanitize base name to prevent directory traversal attacks
-            const sanitizedBaseName = sanitizeFilename(baseName)
-            
             // Determine extension from original name (fallback to png)
             let ext = this.getFileExtension(file.originalname)
             if (!ext) {
                 ext = '.png'
             }
 
-            const fileName = `${sanitizedBaseName}${ext}`
+            const fileName = `${baseName}${ext}`
             const publicUploadsDir = path.join(process.cwd(), 'public', 'uploads', 'images')
             await this.ensureDirectoryExists(publicUploadsDir)
 
@@ -201,8 +183,8 @@ export class FileStorageService {
             await writeFile(filePath, file.buffer)
 
             const fileMetadata: FileMetadata = {
-                id: sanitizedBaseName,
-                originalName: sanitizeFilename(file.originalname),
+                id: baseName,
+                originalName: file.originalname,
                 fileName: fileName,
                 filePath: filePath,
                 fileType: file.mimetype,
@@ -231,11 +213,6 @@ export class FileStorageService {
 
             const mimeType = matches[1]
             const buffer = Buffer.from(matches[2], 'base64')
-
-            // Check file size
-            if (buffer.length > this.maxFileSize) {
-                return { success: false, error: `File size exceeds maximum allowed size of ${this.maxFileSize / (1024 * 1024)}MB` }
-            }
 
             // Create a mock file object
             const mockFile: any = {
@@ -268,9 +245,7 @@ export class FileStorageService {
                 if (existsSync(categoryDir)) {
                     const files = await readdir(categoryDir)
                     for (const file of files) {
-                        // Sanitize file ID to prevent directory traversal
-                        const sanitizedFileId = sanitizeFilename(fileId)
-                        if (file.startsWith(sanitizedFileId)) {
+                        if (file.startsWith(fileId)) {
                             const filePath = path.join(categoryDir, file)
                             return await this.getFileInfo(filePath)
                         }
@@ -296,9 +271,6 @@ export class FileStorageService {
                 if (existsSync(categoryDir)) {
                     const fileList = await readdir(categoryDir)
                     for (const file of fileList) {
-                        // Skip .gitkeep files
-                        if (file === '.gitkeep') continue;
-                        
                         const filePath = path.join(categoryDir, file)
                         const fileInfo = await this.getFileInfo(filePath)
                         if (fileInfo) {
@@ -317,18 +289,8 @@ export class FileStorageService {
 
     async deleteFile(filePath: string): Promise<boolean> {
         try {
-            // Sanitize file path to prevent directory traversal
-            const sanitizedPath = path.resolve(sanitizeFilename(filePath))
-            
-            // Ensure the file is within the uploads directory
-            const uploadsDirResolved = path.resolve(this.uploadsDir)
-            if (!sanitizedPath.startsWith(uploadsDirResolved)) {
-                console.error('Attempt to delete file outside uploads directory:', sanitizedPath)
-                return false
-            }
-            
-            if (existsSync(sanitizedPath)) {
-                await unlink(sanitizedPath)
+            if (existsSync(filePath)) {
+                await unlink(filePath)
                 return true
             }
             return false
@@ -340,29 +302,19 @@ export class FileStorageService {
 
     async getFileInfo(filePath: string): Promise<FileMetadata | null> {
         try {
-            // Sanitize file path to prevent directory traversal
-            const sanitizedPath = path.resolve(sanitizeFilename(filePath))
-            
-            // Ensure the file is within the uploads directory
-            const uploadsDirResolved = path.resolve(this.uploadsDir)
-            if (!sanitizedPath.startsWith(uploadsDirResolved)) {
-                console.error('Attempt to access file outside uploads directory:', sanitizedPath)
-                return null
-            }
-            
-            if (!existsSync(sanitizedPath)) {
+            if (!existsSync(filePath)) {
                 return null
             }
 
-            const stats = await readFile(sanitizedPath)
-            const fileName = path.basename(sanitizedPath)
-            const category = path.basename(path.dirname(sanitizedPath)) as 'images' | 'documents' | 'temp'
+            const stats = await readFile(filePath)
+            const fileName = path.basename(filePath)
+            const category = path.basename(path.dirname(filePath)) as 'images' | 'documents' | 'temp'
 
             return {
                 id: path.parse(fileName).name,
                 originalName: fileName,
                 fileName: fileName,
-                filePath: sanitizedPath,
+                filePath: filePath,
                 fileType: 'application/octet-stream', // Default type
                 fileSize: stats.length,
                 uploadedAt: new Date().toISOString(),
@@ -387,4 +339,4 @@ export class FileStorageService {
 }
 
 // Export singleton instance
-export const fileStorage = new FileStorageService()
+export const fileStorage = new FileStorageService() 

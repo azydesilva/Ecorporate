@@ -1,36 +1,81 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/database';
-import { sanitizeInput, sanitizeNumericInput } from '@/lib/security-utils';
 
-async function getConnection() {
-    if (!pool) {
-        throw new Error('Database connection pool not initialized');
-    }
-    return await pool.getConnection();
-}
-
+// GET settings
 export async function GET() {
+    let connection: any;
     try {
-        console.log('📝 GET /api/settings called');
-        const connection = await getConnection();
-        
-        const [rows] = await connection.execute('SELECT * FROM settings LIMIT 1');
-        connection.release();
-        
-        console.log('🔍 Settings rows:', rows);
-        
-        if (Array.isArray(rows) && rows.length > 0) {
-            const settings = rows[0];
-            return NextResponse.json(settings);
-        } else {
-            return NextResponse.json({});
+        if (!pool) {
+            return NextResponse.json({ error: 'Database not available' }, { status: 503 });
         }
+
+        connection = await pool.getConnection();
+        const [rows] = await connection.execute('SELECT * FROM settings LIMIT 1');
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+            // Return default settings if none exist (snake_case keys for consistency)
+            return NextResponse.json({
+                id: 'settings-001',
+                title: 'E CORPORATE',
+                description: 'CENTRAL COURT (PRIVATE) LIMITED.',
+                logo_url: null,
+                favicon_url: null,
+                primary_color: '#000000',
+                secondary_color: '#ffffff',
+                secretary_renew_fee: 0.00,
+                additional_fees: null
+            });
+        }
+
+        const row: any = rows[0] || {};
+
+        // Safely handle additional_fees which may already be an object or a JSON string
+        let parsedAdditionalFees: any = null;
+        const additionalFeesRaw: any = row.additional_fees;
+        if (additionalFeesRaw !== undefined && additionalFeesRaw !== null) {
+            if (typeof additionalFeesRaw === 'string') {
+                const trimmed = additionalFeesRaw.trim();
+                if (trimmed.length > 0) {
+                    try {
+                        parsedAdditionalFees = JSON.parse(trimmed);
+                    } catch {
+                        // If it isn't valid JSON, return the raw string instead of throwing
+                        parsedAdditionalFees = additionalFeesRaw;
+                    }
+                }
+            } else if (typeof additionalFeesRaw === 'object') {
+                parsedAdditionalFees = additionalFeesRaw;
+            }
+        }
+
+        // Normalize keys to snake_case expected by frontend conversion code
+        const normalized = {
+            id: row.id ?? 'settings-001',
+            title: row.title ?? 'E CORPORATE',
+            description: row.description ?? 'CENTRAL COURT (PRIVATE) LIMITED.',
+            logo_url: row.logo_url ?? null,
+            favicon_url: row.favicon_url ?? null,
+            primary_color: row.primary_color ?? '#000000',
+            secondary_color: row.secondary_color ?? '#ffffff',
+            secretary_renew_fee: row.secretary_renew_fee ?? 0.00,
+            additional_fees: parsedAdditionalFees,
+            updated_at: row.updated_at ?? null,
+            created_at: row.created_at ?? null,
+        };
+
+        return NextResponse.json(normalized);
     } catch (error) {
-        console.error('❌ Error fetching settings:', error);
+        console.error('Error fetching settings:', error);
         return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
+    } finally {
+        try { connection?.release?.(); } catch { }
     }
 }
 
+// PUT update settings
 export async function PUT(request: NextRequest) {
     try {
         console.log('📝 PUT /api/settings called');
@@ -51,20 +96,6 @@ export async function PUT(request: NextRequest) {
             // If parsing fails, treat as empty object instead of throwing
             body = {};
         }
-
-        // Sanitize all input fields to prevent XSS
-        const sanitizedBody: any = {};
-        for (const [key, value] of Object.entries(body)) {
-            if (typeof value === 'string') {
-                sanitizedBody[key] = sanitizeInput(value);
-            } else if (typeof value === 'number') {
-                sanitizedBody[key] = value; // Numbers are safe
-            } else {
-                // For other types, convert to string and sanitize
-                sanitizedBody[key] = sanitizeInput(String(value));
-            }
-        }
-
         const connection = await pool.getConnection();
         console.log('🔗 Database connection established');
 
@@ -76,92 +107,49 @@ export async function PUT(request: NextRequest) {
             console.log('📝 Creating new settings record');
             // Create new settings
             await connection.execute(
-                `INSERT INTO settings (title, description, logo, favicon, primary_color, secondary_color, accent_color, background_color, text_color, sidebar_color, header_color, footer_color, button_primary_color, button_secondary_color, card_color, border_color, success_color, warning_color, error_color, info_color, font_family, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                `INSERT INTO settings (
+          id, title, description, logo_url, favicon_url, primary_color, secondary_color, secretary_renew_fee, additional_fees
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    sanitizedBody.title || '',
-                    sanitizedBody.description || '',
-                    sanitizedBody.logo || '',
-                    sanitizedBody.favicon || '',
-                    sanitizedBody.primaryColor || '#3b82f6',
-                    sanitizedBody.secondaryColor || '#64748b',
-                    sanitizedBody.accentColor || '#10b981',
-                    sanitizedBody.backgroundColor || '#ffffff',
-                    sanitizedBody.textColor || '#000000',
-                    sanitizedBody.sidebarColor || '#f8fafc',
-                    sanitizedBody.headerColor || '#ffffff',
-                    sanitizedBody.footerColor || '#f1f5f9',
-                    sanitizedBody.buttonPrimaryColor || '#3b82f6',
-                    sanitizedBody.buttonSecondaryColor || '#64748b',
-                    sanitizedBody.cardColor || '#ffffff',
-                    sanitizedBody.borderColor || '#e2e8f0',
-                    sanitizedBody.successColor || '#10b981',
-                    sanitizedBody.warningColor || '#f59e0b',
-                    sanitizedBody.errorColor || '#ef4444',
-                    sanitizedBody.infoColor || '#3b82f6',
-                    sanitizedBody.fontFamily || 'Inter, sans-serif'
+                    'settings-001',
+                    body.title || 'E CORPORATE',
+                    body.description || 'CENTRAL COURT (PRIVATE) LIMITED.',
+                    body.logo_url || null,
+                    body.favicon_url || null,
+                    body.primary_color || '#000000',
+                    body.secondary_color || '#ffffff',
+                    body.secretary_renew_fee || 0.00,
+                    body.additional_fees ? JSON.stringify(body.additional_fees) : null
                 ]
             );
         } else {
             console.log('📝 Updating existing settings record');
             // Update existing settings
-            await connection.execute(
+            const updateResult = await connection.execute(
                 `UPDATE settings SET 
-                    title = ?, 
-                    description = ?, 
-                    logo = ?, 
-                    favicon = ?, 
-                    primary_color = ?, 
-                    secondary_color = ?, 
-                    accent_color = ?, 
-                    background_color = ?, 
-                    text_color = ?, 
-                    sidebar_color = ?, 
-                    header_color = ?, 
-                    footer_color = ?, 
-                    button_primary_color = ?, 
-                    button_secondary_color = ?, 
-                    card_color = ?, 
-                    border_color = ?, 
-                    success_color = ?, 
-                    warning_color = ?, 
-                    error_color = ?, 
-                    info_color = ?, 
-                    font_family = ?,
-                    updated_at = NOW()
-                WHERE id = ?`,
+          title = ?, description = ?, logo_url = ?, favicon_url = ?,
+          primary_color = ?, secondary_color = ?, secretary_renew_fee = ?, additional_fees = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
                 [
-                    sanitizedBody.title || '',
-                    sanitizedBody.description || '',
-                    sanitizedBody.logo || '',
-                    sanitizedBody.favicon || '',
-                    sanitizedBody.primaryColor || '#3b82f6',
-                    sanitizedBody.secondaryColor || '#64748b',
-                    sanitizedBody.accentColor || '#10b981',
-                    sanitizedBody.backgroundColor || '#ffffff',
-                    sanitizedBody.textColor || '#000000',
-                    sanitizedBody.sidebarColor || '#f8fafc',
-                    sanitizedBody.headerColor || '#ffffff',
-                    sanitizedBody.footerColor || '#f1f5f9',
-                    sanitizedBody.buttonPrimaryColor || '#3b82f6',
-                    sanitizedBody.buttonSecondaryColor || '#64748b',
-                    sanitizedBody.cardColor || '#ffffff',
-                    sanitizedBody.borderColor || '#e2e8f0',
-                    sanitizedBody.successColor || '#10b981',
-                    sanitizedBody.warningColor || '#f59e0b',
-                    sanitizedBody.errorColor || '#ef4444',
-                    sanitizedBody.infoColor || '#3b82f6',
-                    sanitizedBody.fontFamily || 'Inter, sans-serif',
-                    existing[0].id
+                    body.title || 'E CORPORATE',
+                    body.description || 'CENTRAL COURT (PRIVATE) LIMITED.',
+                    body.logo_url || null,
+                    body.favicon_url || null,
+                    body.primary_color || '#000000',
+                    body.secondary_color || '#ffffff',
+                    body.secretary_renew_fee || 0.00,
+                    body.additional_fees ? JSON.stringify(body.additional_fees) : null,
+                    existing[0].id  // Use the actual ID from the existing record
                 ]
             );
+            console.log('📝 Update result:', updateResult);
         }
 
         connection.release();
-        console.log('✅ Settings saved successfully');
-
-        return NextResponse.json({ success: true, message: 'Settings saved successfully' });
+        console.log('✅ Settings updated successfully');
+        return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('❌ Error saving settings:', error);
-        return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
+        console.error('Error updating settings:', error);
+        return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
     }
 }

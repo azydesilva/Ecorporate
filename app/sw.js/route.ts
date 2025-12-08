@@ -7,7 +7,7 @@ export async function GET() {
     // The service worker script content
     const sw = `// Simple service worker for cache busting and update prompts
 // Increment CACHE_VERSION on each deployment to invalidate old caches
-const CACHE_VERSION = '151';
+const CACHE_VERSION = '150';
 const APP_CACHE = \`app-cache-${'${CACHE_VERSION}'}\`;
 
 self.addEventListener('install', (event) => {

@@ -3,7 +3,6 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { fileStorage, FileMetadata } from '@/lib/file-storage'
-import { sanitizeInput } from '@/lib/security-utils'
 
 // Configure for large file uploads
 export const config = {
@@ -37,11 +36,6 @@ export async function POST(request: NextRequest) {
         const bytes = await file.arrayBuffer()
         const buffer = Buffer.from(bytes)
 
-        // Sanitize input values
-        const sanitizedUploadedBy = uploadedBy ? sanitizeInput(uploadedBy) : undefined
-        const sanitizedSaveToPublic = saveToPublic ? sanitizeInput(saveToPublic) : null
-        const sanitizedPublicBaseName = publicBaseName ? sanitizeInput(publicBaseName) : null
-
         // Create a mock multer file object
         const multerFile: Express.Multer.File = {
             fieldname: 'file',
@@ -58,10 +52,10 @@ export async function POST(request: NextRequest) {
 
         // Save file using our file storage service
         let result
-        if (sanitizedSaveToPublic === 'true' && sanitizedPublicBaseName) {
-            result = await fileStorage.saveFileToPublicRoot(multerFile, sanitizedPublicBaseName)
+        if (saveToPublic === 'true' && publicBaseName) {
+            result = await fileStorage.saveFileToPublicRoot(multerFile, publicBaseName)
         } else {
-            result = await fileStorage.saveFile(multerFile, sanitizedUploadedBy)
+            result = await fileStorage.saveFile(multerFile, uploadedBy)
         }
 
         if (!result.success) {
@@ -99,9 +93,7 @@ export async function GET(request: NextRequest) {
             )
         }
 
-        // Sanitize file path to prevent directory traversal
-        const sanitizedFilePath = sanitizeInput(filePath)
-        const fileInfo = await fileStorage.getFileInfo(sanitizedFilePath)
+        const fileInfo = await fileStorage.getFileInfo(filePath)
 
         if (!fileInfo) {
             return NextResponse.json(
@@ -137,7 +129,6 @@ export async function DELETE(request: NextRequest) {
             )
         }
 
-        // Sanitize paths to prevent directory traversal
         let resolvedPath = filePath as string
         if (!resolvedPath && publicPath) {
             // Resolve to absolute path inside public directory
@@ -145,9 +136,7 @@ export async function DELETE(request: NextRequest) {
             resolvedPath = require('path').join(process.cwd(), 'public', normalized)
         }
 
-        // Sanitize the resolved path
-        const sanitizedPath = sanitizeInput(resolvedPath)
-        const deleted = await fileStorage.deleteFile(sanitizedPath)
+        const deleted = await fileStorage.deleteFile(resolvedPath)
 
         if (!deleted) {
             return NextResponse.json(
@@ -168,4 +157,4 @@ export async function DELETE(request: NextRequest) {
             { status: 500 }
         )
     }
-}
+} 

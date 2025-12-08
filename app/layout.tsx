@@ -10,7 +10,7 @@ import ServiceWorkerUpdater from "@/components/ServiceWorkerUpdater"
 
 export const metadata: Metadata = {
   title: "", // No default title - set by admin only
-  description: "E Corporate Dashboard by CENTRAL COURT (PRIVATE) LIMITED | Sri Lanka's first all-in-one digital platform for company registration, secretarial services, compliance, and corporate governance. Manage your business 24/7 with ease, security, and legal compliance.",
+  description: "E Corporate Dashboard by CENTRAL COURT (PRIVATE) LIMITED | Sri Lanka’s first all-in-one digital platform for company registration, secretarial services, compliance, and corporate governance. Manage your business 24/7 with ease, security, and legal compliance.",
   generator: "CENTRAL COURT",
 }
 
@@ -42,41 +42,23 @@ export default function RootLayout({
                     // Try to get settings from localStorage first (fallback)
                     const localSettings = JSON.parse(localStorage.getItem('appSettings') || '{}');
                     if (localSettings && localSettings.title) {
-                      // Basic sanitization for title
-                      let sanitizedTitle = localSettings.title
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
-                        .replace(/'/g, '&#x27;');
-                      document.title = sanitizedTitle;
+                      document.title = localSettings.title;
                       
                       // Also update metadata tags early
                       const metaTags = document.querySelectorAll('meta[property="og:title"], meta[name="twitter:title"], meta[name="title"]');
                       metaTags.forEach(tag => {
-                        // Basic sanitization for content
-                        let sanitizedContent = localSettings.title
-                          .replace(/</g, '&lt;')
-                          .replace(/>/g, '&gt;')
-                          .replace(/"/g, '&quot;')
-                          .replace(/'/g, '&#x27;');
-                        tag.setAttribute('content', sanitizedContent);
+                        tag.setAttribute('content', localSettings.title);
                       });
                       // Update social image if logo present
                       if (localSettings.logo) {
                         const imgTags = document.querySelectorAll('meta[property="og:image"], meta[name="twitter:image"], meta[name="image"]');
                         imgTags.forEach(tag => {
-                          // Basic sanitization for logo URL
-                          let sanitizedLogo = localSettings.logo
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;')
-                            .replace(/"/g, '&quot;')
-                            .replace(/'/g, '&#x27;');
-                          tag.setAttribute('content', sanitizedLogo);
+                          tag.setAttribute('content', localSettings.logo);
                         });
                       }
                       
                       // Set a flag that the AppTitle component can check
-                      window.__initialTitleSet = sanitizedTitle;
+                      window.__initialTitleSet = localSettings.title;
                     } else {
                       // No local settings found; keep existing title without forcing a default
                       window.__initialTitleSet = '';

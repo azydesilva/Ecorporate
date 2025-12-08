@@ -1,6 +1,5 @@
 import type { User } from "./utils"
 import { LocalStorageService } from "./database-service"
-// Removed password hashing utilities as per user request
 
 // User roles
 export type UserRole = "admin" | "customer"
@@ -12,7 +11,7 @@ const DEFAULT_ADMIN: User = {
   email: "admin@example.com",
   mobile_number: "+94771234567", // Default admin mobile number
   role: "admin",
-  password: "admin123", // Plain text password as requested
+  password: "admin123", // In a real app, this would be hashed
   email_verified: true, // Admin is pre-verified
   email_verified_at: new Date().toISOString(),
 }
@@ -79,7 +78,7 @@ export async function registerUser(user: Omit<User, "id">): Promise<User | null>
   }
 }
 
-// Authenticate user with plain text password comparison
+// Authenticate user
 export async function authenticateUser(email: string, password: string): Promise<User | null> {
   try {
     const result = await LocalStorageService.authenticateUser(email, password)
@@ -132,7 +131,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
   }
 }
 
-// Validate user's current password with plain text comparison
+// Validate user's current password
 export async function validateUserPassword(userId: string, password: string): Promise<boolean> {
   try {
     console.log('Validating password for user:', userId);
@@ -150,7 +149,7 @@ export async function validateUserPassword(userId: string, password: string): Pr
       match: user.password === password
     });
 
-    // Compare passwords directly (plain text as requested)
+    // Compare passwords (in a real app, this would use a secure comparison)
     const isValid = user.password === password
 
     if (!isValid) {
