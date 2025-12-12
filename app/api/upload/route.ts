@@ -1,17 +1,23 @@
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
 import { NextRequest, NextResponse } from 'next/server'
 import { fileStorage, FileMetadata } from '@/lib/file-storage'
 
 // Configure for large file uploads
-export const config = {
-    api: {
-        bodyParser: {
-            sizeLimit: '100mb',
-        },
-        responseLimit: false,
-    },
+export const maxDuration = 60;      // for long-running uploads
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+// Define the Multer file type
+interface MulterFile {
+    fieldname: string;
+    originalname: string;
+    encoding: string;
+    mimetype: string;
+    size: number;
+    buffer: Buffer;
+    destination: string;
+    filename: string;
+    path: string;
+    stream: any;
 }
 
 export async function POST(request: NextRequest) {
@@ -37,7 +43,7 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(bytes)
 
         // Create a mock multer file object
-        const multerFile: Express.Multer.File = {
+        const multerFile: MulterFile = {
             fieldname: 'file',
             originalname: file.name,
             encoding: '7bit',

@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -21,13 +19,7 @@ const nextConfig = {
       },
     ]
   },
-  // Configure for large file uploads
-  serverRuntimeConfig: {
-    // Increase body size limit for file uploads
-    bodyParser: {
-      sizeLimit: '100mb',
-    },
-  },
+
   // Configure API routes for large uploads
   async headers() {
     return [
